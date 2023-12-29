@@ -1,0 +1,2 @@
+version=4
+https://github.com/httpie/httpie/tags .*/(\d[\d\.]+).tar.gz

@@ -1,5 +1,157 @@
-template-repository (1.0-1) unstable; urgency=medium
+httpie (3.2.1-2) unstable; urgency=high
 
-  * Initial release
+  * d/control:
+    - Add Bartosz Fenski as principal uploader.
+    - Add Arthur Diniz as secondary uploader.
+    - Change maintainer to Debian Python Team.
+    - Bump Standards-Version to 4.6.2.
+    - Declare Vcs-* fields under python salsa group.
+    - Declare Rules-Requires-Root to no.
+    - Replace debhelper with debhelper-compat.
+    - Removed trailing whitespaces.
+  * d/copyright:
+    - Add Arthur Diniz.
+    - Update format URL.
+  * d/changelog: Removed trailing whitespaces.
+  * d/compat: Removed.
+  * d/patches: Patch to disable update checks. (Closes: #1041792)
+  * d/upstream/metadata: Created.
+  * d/gbp.conf: Created.
 
- -- Tsic404 <liuheng@deepin.org>  Sat, 28 Jan 2023 13:46:49 +0800
+ -- Arthur Diniz <arthurbdiniz@gmail.com>  Thu, 05 Oct 2023 19:09:08 +0100
+
+httpie (3.2.1-1) unstable; urgency=medium
+
+  * New upstream version (Closes: #1006651)
+    - fixes two exposure of sensitive information vulnerabilities:
+      CVE-2022-0430 (Closes: #1014765)
+      CVE-2022-24737 (Closes: #1008011)
+
+ -- Bartosz Fenski <fenio@debian.org>  Tue, 19 Jul 2022 12:06:14 +0200
+
+httpie (2.6.0-1) unstable; urgency=medium
+
+  * The Akamai Technologies paid volunteer days release.
+  * New upstream version. (Closes: #993937, #996479)
+    - various minor packaging updates due to upstream changes
+
+ -- Bartosz Fenski <fenio@debian.org>  Tue, 28 Dec 2021 10:51:48 +0100
+
+httpie (2.4.0-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Bartosz Fenski <fenio@debian.org>  Thu, 17 Jun 2021 09:21:02 +0200
+
+httpie (2.2.0-2) unstable; urgency=medium
+
+  * Source only upload.
+
+ -- Bartosz Fenski <fenio@debian.org>  Sun, 12 Jul 2020 16:58:08 +0200
+
+httpie (2.2.0-1) unstable; urgency=medium
+
+  * The Akamai Technologies paid volunteer days release.
+  * New upstream release (Closes: #950719)
+  * Bumped Standards-Version.
+  * Bumped DH compatibility level.
+  * No longer depends on python2 (Closes: #943128)
+
+ -- Bartosz Fenski <fenio@debian.org>  Thu, 09 Jul 2020 10:52:14 +0200
+
+httpie (1.0.3-2) unstable; urgency=medium
+
+  * Source only upload.
+
+ -- Bartosz Fenski <fenio@debian.org>  Sat, 05 Oct 2019 10:54:11 +0200
+
+httpie (1.0.3-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #920214)
+    - fixes CVE-2019-10751 (Closes: #940058)
+  * Bumped Standards-Version.
+  * The Akamai Technologies paid volunteer days release.
+
+ -- Bartosz Fenski <fenio@debian.org>  Mon, 30 Sep 2019 08:29:27 +0200
+
+httpie (0.9.8-2) unstable; urgency=low
+
+  * Switched to python3 (Closes: #830305, #869221)
+
+ -- Bartosz Fenski <fenio@debian.org>  Tue, 02 May 2017 12:49:27 +0200
+
+httpie (0.9.8-1) unstable; urgency=low
+
+  * The Akamai Technologies paid volunteer days release.
+  * New upstream version.
+  * Includes updated manpage thanks to Gaetano Guerriero. (Closes: #815881)
+
+ -- Bartosz Fenski <fenio@debian.org>  Fri, 30 Dec 2016 15:39:37 +0100
+
+httpie (0.9.2-1) unstable; urgency=low
+
+  * ACK previous NMU, thanks a lot Vincent!
+  * Bumped required python-requests version (Closes: #802540)
+
+ -- Bartosz Fenski <fenio@debian.org>  Mon, 14 Dec 2015 15:39:37 +0100
+
+httpie (0.9.2-0.1) unstable; urgency=low
+
+  * Non-maintainer upload with maintainer's authorization.
+  * New upstream release. Closes: #785616.
+     + This new release supports SNI. Closes: #751568.
+     + Remove https symlink. This feature is not supported anymore.
+     + Add build dependency to dh-python.
+     + Disable tests for now, they need pytest-httpbin.
+     + Remove build dependency to tox (unused).
+     + Force "pybuild" build system for debhelper (instead of makefile).
+     + Update debian/copyright.
+  * Switch httpie package to "Architecture: all", as it is pure
+    Python. Closes: #750179.
+  * Update debian/watch.
+  * Bump Standards-Version to 3.9.6.
+  * Add https(1) manual page as an alias to http(1).
+
+ -- Vincent Bernat <bernat@debian.org>  Thu, 28 May 2015 20:30:17 +0200
+
+httpie (0.8.0-1) unstable; urgency=low
+
+  * New upstream release.
+  * ACK previous NMU - thanks Vincent!
+  * Bumped Standards-Version (no changes needed).
+  * Obsolete options has been removed from manpage (Closes: #700214).
+  * Provides symlink https -> http (Closes: #737642)
+
+ -- Bartosz Fenski <fenio@debian.org>  Tue, 04 Feb 2014 18:05:59 +0100
+
+httpie (0.7.1-0.1) unstable; urgency=low
+
+  * Non-maintainer upload to fix RC bug.
+  * New upstream release.
+     + Work with python-requests >= 1.0. Closes: #707994.
+  * Drop Vcs-* lines in debian/control. This is not the VCS for Debian
+    packaging.
+
+ -- Vincent Bernat <bernat@debian.org>  Sat, 23 Nov 2013 20:36:26 +0100
+
+httpie (0.3.1-1) unstable; urgency=low
+
+  * The Akamai Technologies paid volunteer days release.
+  * Includes manual page (Closes: #673067)
+    Courtesy of Khalid El Fathi <khalid@elfathi.fr>. Thanks!
+  * New upstream version. (Closes: #693810)
+    - handles binary transfers properly (Closes: #689974)
+
+ -- Bartosz Fenski <fenio@debian.org>  Thu, 20 Dec 2012 14:27:59 +0100
+
+httpie (0.1.6+20120309git-2) unstable; urgency=low
+
+  * Depends on exact version of python-requests (Closes: #663506)
+
+ -- Bartosz Fenski <fenio@debian.org>  Sat, 24 Mar 2012 17:43:02 +0100
+
+httpie (0.1.6+20120309git-1) unstable; urgency=low
+
+  * Initial release (Closes: #663184)
+
+ -- Bartosz Fenski <fenio@debian.org>  Fri, 09 Mar 2012 09:23:08 +0100
