@@ -1,0 +1,373 @@
+From: Arthur Diniz <arthurbdiniz@gmail.com>
+Date: Sun, 24 Sep 2023 15:50:50 +0100
+Subject: Disable update checks
+
+Forwarded: not-needed
+
+Closes: #1041792
+
+Signed-off-by: Arthur Diniz <arthurbdiniz@gmail.com>
+---
+ httpie/core.py                        |   2 -
+ httpie/internal/daemon_runner.py      |   3 +-
+ httpie/internal/update_warnings.py    |  12 ++
+ httpie/manager/tasks/__init__.py      |   2 -
+ httpie/manager/tasks/check_updates.py |  10 --
+ tests/test_update_warnings.py         | 237 ----------------------------------
+ 6 files changed, 13 insertions(+), 253 deletions(-)
+ delete mode 100644 httpie/manager/tasks/check_updates.py
+ delete mode 100644 tests/test_update_warnings.py
+
+diff --git a/httpie/core.py b/httpie/core.py
+index c90452a..1ae52f7 100644
+--- a/httpie/core.py
++++ b/httpie/core.py
+@@ -24,7 +24,6 @@ from .output.writer import write_message, write_stream, write_raw_data, MESSAGE_
+ from .plugins.registry import plugin_manager
+ from .status import ExitStatus, http_status_to_exit_status
+ from .utils import unwrap_context
+-from .internal.update_warnings import check_updates
+ from .internal.daemon_runner import is_daemon_mode, run_daemon_task
+ 
+ 
+@@ -95,7 +94,6 @@ def raw_main(
+                 raise
+             exit_status = ExitStatus.ERROR
+     else:
+-        check_updates(env)
+         try:
+             exit_status = main_program(
+                 args=parsed_args,
+diff --git a/httpie/internal/daemon_runner.py b/httpie/internal/daemon_runner.py
+index ec20b50..6cdef34 100644
+--- a/httpie/internal/daemon_runner.py
++++ b/httpie/internal/daemon_runner.py
+@@ -3,7 +3,7 @@ from contextlib import redirect_stderr, redirect_stdout
+ from typing import List
+ 
+ from httpie.context import Environment
+-from httpie.internal.update_warnings import _fetch_updates, _get_suppress_context
++from httpie.internal.update_warnings import _get_suppress_context
+ from httpie.status import ExitStatus
+ 
+ STATUS_FILE = '.httpie-test-daemon-status'
+@@ -23,7 +23,6 @@ def _check_status(env):
+ 
+ DAEMONIZED_TASKS = {
+     'check_status': _check_status,
+-    'fetch_updates': _fetch_updates,
+ }
+ 
+ 
+diff --git a/httpie/internal/update_warnings.py b/httpie/internal/update_warnings.py
+index a4b80d4..42fbb34 100644
+--- a/httpie/internal/update_warnings.py
++++ b/httpie/internal/update_warnings.py
+@@ -38,6 +38,10 @@ def _read_data_error_free(file: Path) -> Any:
+ 
+ 
+ def _fetch_updates(env: Environment) -> str:
++    # Returning prematurely this function to
++    # make sure update checker is disabled.
++    return ''
++
+     file = env.config.version_info_file
+     data = _read_data_error_free(file)
+ 
+@@ -60,6 +64,10 @@ def fetch_updates(env: Environment, lazy: bool = True):
+ 
+ 
+ def maybe_fetch_updates(env: Environment) -> None:
++    # Returning prematurely this function to
++    # make sure update checker is disabled.
++    return None
++
+     if env.config.get('disable_update_warnings'):
+         return None
+ 
+@@ -139,6 +147,10 @@ def get_update_status(env: Environment) -> str:
+ 
+ @_update_checker
+ def check_updates(env: Environment) -> None:
++    # Returning prematurely this function to
++    # make sure update checker is disabled.
++    return None
++
+     if env.config.get('disable_update_warnings'):
+         return None
+ 
+diff --git a/httpie/manager/tasks/__init__.py b/httpie/manager/tasks/__init__.py
+index b9b30fb..9c591a2 100644
+--- a/httpie/manager/tasks/__init__.py
++++ b/httpie/manager/tasks/__init__.py
+@@ -1,11 +1,9 @@
+ from httpie.manager.tasks.sessions import cli_sessions
+ from httpie.manager.tasks.export_args import cli_export_args
+ from httpie.manager.tasks.plugins import cli_plugins
+-from httpie.manager.tasks.check_updates import cli_check_updates
+ 
+ CLI_TASKS = {
+     'sessions': cli_sessions,
+     'export-args': cli_export_args,
+     'plugins': cli_plugins,
+-    'check-updates': cli_check_updates
+ }
+diff --git a/httpie/manager/tasks/check_updates.py b/httpie/manager/tasks/check_updates.py
+deleted file mode 100644
+index 07fd124..0000000
+--- a/httpie/manager/tasks/check_updates.py
++++ /dev/null
+@@ -1,10 +0,0 @@
+-import argparse
+-from httpie.context import Environment
+-from httpie.status import ExitStatus
+-from httpie.internal.update_warnings import fetch_updates, get_update_status
+-
+-
+-def cli_check_updates(env: Environment, args: argparse.Namespace) -> ExitStatus:
+-    fetch_updates(env, lazy=False)
+-    env.stdout.write(get_update_status(env))
+-    return ExitStatus.SUCCESS
+diff --git a/tests/test_update_warnings.py b/tests/test_update_warnings.py
+deleted file mode 100644
+index b2c24c3..0000000
+--- a/tests/test_update_warnings.py
++++ /dev/null
+@@ -1,237 +0,0 @@
+-import json
+-import tempfile
+-import time
+-from contextlib import suppress
+-from datetime import datetime
+-from pathlib import Path
+-
+-import pytest
+-
+-from httpie.internal.daemon_runner import STATUS_FILE
+-from httpie.internal.daemons import spawn_daemon
+-from httpie.status import ExitStatus
+-
+-from .utils import PersistentMockEnvironment, http, httpie
+-
+-BUILD_CHANNEL = 'test'
+-BUILD_CHANNEL_2 = 'test2'
+-UNKNOWN_BUILD_CHANNEL = 'test3'
+-
+-HIGHEST_VERSION = '999.999.999'
+-LOWEST_VERSION = '1.1.1'
+-
+-FIXED_DATE = datetime(1970, 1, 1).isoformat()
+-
+-MAX_ATTEMPT = 40
+-MAX_TIMEOUT = 2.0
+-
+-
+-def check_update_warnings(text):
+-    return 'A new HTTPie release' in text
+-
+-
+-@pytest.mark.requires_external_processes
+-def test_daemon_runner():
+-    # We have a pseudo daemon task called 'check_status'
+-    # which creates a temp file called STATUS_FILE under
+-    # user's temp directory. This test simply ensures that
+-    # we create a daemon that successfully performs the
+-    # external task.
+-
+-    status_file = Path(tempfile.gettempdir()) / STATUS_FILE
+-    with suppress(FileNotFoundError):
+-        status_file.unlink()
+-
+-    spawn_daemon('check_status')
+-
+-    for attempt in range(MAX_ATTEMPT):
+-        time.sleep(MAX_TIMEOUT / MAX_ATTEMPT)
+-        if status_file.exists():
+-            break
+-    else:
+-        pytest.fail(
+-            'Maximum number of attempts failed for daemon status check.'
+-        )
+-
+-    assert status_file.exists()
+-
+-
+-def test_fetch(static_fetch_data, without_warnings):
+-    http('fetch_updates', '--daemon', env=without_warnings)
+-
+-    with open(without_warnings.config.version_info_file) as stream:
+-        version_data = json.load(stream)
+-
+-    assert version_data['last_warned_date'] is None
+-    assert version_data['last_fetched_date'] is not None
+-    assert (
+-        version_data['last_released_versions'][BUILD_CHANNEL]
+-        == HIGHEST_VERSION
+-    )
+-    assert (
+-        version_data['last_released_versions'][BUILD_CHANNEL_2]
+-        == LOWEST_VERSION
+-    )
+-
+-
+-def test_fetch_dont_override_existing_layout(
+-    static_fetch_data, without_warnings
+-):
+-    with open(without_warnings.config.version_info_file, 'w') as stream:
+-        existing_layout = {
+-            'last_warned_date': FIXED_DATE,
+-            'last_fetched_date': FIXED_DATE,
+-            'last_released_versions': {BUILD_CHANNEL: LOWEST_VERSION},
+-        }
+-        json.dump(existing_layout, stream)
+-
+-    http('fetch_updates', '--daemon', env=without_warnings)
+-
+-    with open(without_warnings.config.version_info_file) as stream:
+-        version_data = json.load(stream)
+-
+-    # The "last updated at" field should not be modified, but the
+-    # rest need to be updated.
+-    assert version_data['last_warned_date'] == FIXED_DATE
+-    assert version_data['last_fetched_date'] != FIXED_DATE
+-    assert (
+-        version_data['last_released_versions'][BUILD_CHANNEL]
+-        == HIGHEST_VERSION
+-    )
+-
+-
+-def test_fetch_broken_json(static_fetch_data, without_warnings):
+-    with open(without_warnings.config.version_info_file, 'w') as stream:
+-        stream.write('$$broken$$')
+-
+-    http('fetch_updates', '--daemon', env=without_warnings)
+-
+-    with open(without_warnings.config.version_info_file) as stream:
+-        version_data = json.load(stream)
+-
+-    assert (
+-        version_data['last_released_versions'][BUILD_CHANNEL]
+-        == HIGHEST_VERSION
+-    )
+-
+-
+-def test_check_updates_disable_warnings(
+-    without_warnings, httpbin, fetch_update_mock
+-):
+-    r = http(httpbin + '/get', env=without_warnings)
+-    assert not fetch_update_mock.called
+-    assert not check_update_warnings(r.stderr)
+-
+-
+-def test_check_updates_first_invocation(
+-    with_warnings, httpbin, fetch_update_mock
+-):
+-    r = http(httpbin + '/get', env=with_warnings)
+-    assert fetch_update_mock.called
+-    assert not check_update_warnings(r.stderr)
+-
+-
+-@pytest.mark.parametrize(
+-    'should_issue_warning, build_channel',
+-    [
+-        (False, pytest.lazy_fixture('lower_build_channel')),
+-        (True, pytest.lazy_fixture('higher_build_channel')),
+-    ],
+-)
+-def test_check_updates_first_time_after_data_fetch(
+-    with_warnings,
+-    httpbin,
+-    fetch_update_mock,
+-    static_fetch_data,
+-    should_issue_warning,
+-    build_channel,
+-):
+-    http('fetch_updates', '--daemon', env=with_warnings)
+-    r = http(httpbin + '/get', env=with_warnings)
+-
+-    assert not fetch_update_mock.called
+-    assert (not should_issue_warning) or check_update_warnings(r.stderr)
+-
+-
+-def test_check_updates_first_time_after_data_fetch_unknown_build_channel(
+-    with_warnings,
+-    httpbin,
+-    fetch_update_mock,
+-    static_fetch_data,
+-    unknown_build_channel,
+-):
+-    http('fetch_updates', '--daemon', env=with_warnings)
+-    r = http(httpbin + '/get', env=with_warnings)
+-
+-    assert not fetch_update_mock.called
+-    assert not check_update_warnings(r.stderr)
+-
+-
+-def test_cli_check_updates(
+-    static_fetch_data, higher_build_channel
+-):
+-    r = httpie('cli', 'check-updates')
+-    assert r.exit_status == ExitStatus.SUCCESS
+-    assert check_update_warnings(r)
+-
+-
+-@pytest.mark.parametrize(
+-    "build_channel", [
+-        pytest.lazy_fixture("lower_build_channel"),
+-        pytest.lazy_fixture("unknown_build_channel")
+-    ]
+-)
+-def test_cli_check_updates_not_shown(
+-    static_fetch_data, build_channel
+-):
+-    r = httpie('cli', 'check-updates')
+-    assert r.exit_status == ExitStatus.SUCCESS
+-    assert not check_update_warnings(r)
+-
+-
+-@pytest.fixture
+-def with_warnings(tmp_path):
+-    env = PersistentMockEnvironment()
+-    env.config['version_info_file'] = tmp_path / 'version.json'
+-    env.config['disable_update_warnings'] = False
+-    return env
+-
+-
+-@pytest.fixture
+-def without_warnings(tmp_path):
+-    env = PersistentMockEnvironment()
+-    env.config['version_info_file'] = tmp_path / 'version.json'
+-    env.config['disable_update_warnings'] = True
+-    return env
+-
+-
+-@pytest.fixture
+-def fetch_update_mock(mocker):
+-    mock_fetch = mocker.patch('httpie.internal.update_warnings.fetch_updates')
+-    return mock_fetch
+-
+-
+-@pytest.fixture
+-def static_fetch_data(mocker):
+-    mock_get = mocker.patch('requests.get')
+-    mock_get.return_value.status_code = 200
+-    mock_get.return_value.json.return_value = {
+-        BUILD_CHANNEL: HIGHEST_VERSION,
+-        BUILD_CHANNEL_2: LOWEST_VERSION,
+-    }
+-    return mock_get
+-
+-
+-@pytest.fixture
+-def unknown_build_channel(mocker):
+-    mocker.patch('httpie.internal.update_warnings.BUILD_CHANNEL', UNKNOWN_BUILD_CHANNEL)
+-
+-
+-@pytest.fixture
+-def higher_build_channel(mocker):
+-    mocker.patch('httpie.internal.update_warnings.BUILD_CHANNEL', BUILD_CHANNEL)
+-
+-
+-@pytest.fixture
+-def lower_build_channel(mocker):
+-    mocker.patch('httpie.internal.update_warnings.BUILD_CHANNEL', BUILD_CHANNEL_2)
